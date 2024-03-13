@@ -26,6 +26,7 @@ void print_type_table() {
 }
 
 bool are_simply_equivalent(type_idx a, type_idx b) {
+    if (a == b) return true;
     switch (type_table.at[a].tag){
     case t_struct:  return false;
     case t_ptr:     return type_table.at[b].tag == t_ptr && are_simply_equivalent(type_table.at[a].as_ptr, type_table.at[b].as_ptr);
@@ -53,7 +54,14 @@ void number_types(u64* type_numbers, type_idx a, u64* next_number) {
 
 }
 
-bool are_equivalent(type_idx a, type_idx b) {
+type_idx type_from_number(u64 t, u64* type_nums) {
+    FOR_URANGE(i, 0, type_table.len) {
+        if (type_nums[i] == t) return i;
+    }
+    return -1;
+}
+
+bool are_equivalent(type_idx a, type_idx b, bool ignore_field_names) {
     if (a >= type_table.len || b >= type_table.len) return false;
     if (are_simply_equivalent(a, b)) return true;
     if (type_table.at[a].tag != type_table.at[b].tag) return false;
@@ -61,16 +69,42 @@ bool are_equivalent(type_idx a, type_idx b) {
 
     u64* type_numbers_A = malloc(type_table.len * sizeof(u64));
     memset(type_numbers_A, 0, type_table.len * sizeof(u64));
-    u64 next_number = 1;
-    number_types(type_numbers_A, a, &next_number);
+    u64 next_number_A = 1;
+    number_types(type_numbers_A, a, &next_number_A);
 
     u64* type_numbers_B = malloc(type_table.len * sizeof(u64));
     memset(type_numbers_B, 0, type_table.len * sizeof(u64));
-    next_number = 1;
-    number_types(type_numbers_B, a, &next_number);
+    u64 next_number_B = 1;
+    number_types(type_numbers_B, b, &next_number_B);
+
+    if (next_number_A != next_number_B) return false;
 
 
-    return false;
+    FOR_URANGE(i, 0, next_number_A) {
+        type_idx t_a = type_from_number(i, type_numbers_A);
+        type_idx t_b = type_from_number(i, type_numbers_B);
+
+        if (type_table.at[t_a].tag != type_table.at[t_b].tag) return false;
+
+        switch (type_table.at[t_a].tag) {
+        case t_ptr:
+            if (type_numbers_A[type_table.at[t_a].as_ptr] != type_numbers_B[type_table.at[t_b].as_ptr]) 
+                return false;
+            break;
+        case t_struct:
+            FOR_URANGE(i, 0, type_table.at[t_a].as_struct.len) {
+                if (!ignore_field_names && strcmp(type_table.at[t_a].as_struct.at[i].name, type_table.at[t_b].as_struct.at[i].name) != 0)
+                    return false;
+                if (type_numbers_A[type_table.at[t_a].as_struct.at[i].subtype] != type_numbers_B[type_table.at[t_b].as_struct.at[i].subtype])
+                    return false;
+            }
+        }
+    }
+
+    free(type_numbers_A);
+    free(type_numbers_B);
+
+    return true;
 }
 
 int main() {
@@ -98,7 +132,7 @@ int main() {
         .subtype = 4,
     }));
     da_append(&type_table, struct_type_one);
-    da_append(&type_table, ((type){.tag = t_ptr, .as_ptr = 3}));
+    da_append(&type_table, ((type){.tag = t_ptr, .as_ptr = 5}));
 
 
     // make another one
@@ -115,12 +149,15 @@ int main() {
         .subtype = 6,
     }));
     da_append(&type_table, struct_type_two);
-    da_append(&type_table, ((type){.tag = t_ptr, .as_ptr = 5}));
-
+    da_append(&type_table, ((type){.tag = t_ptr, .as_ptr = 3}));
     
-    // print_type_table();
+    print_type_table();
 
-    printf("%s\n", are_equivalent(3, 5) ? "true" : "false");
+    FOR_URANGE(i, 0, type_table.len) {
+        FOR_URANGE(j, i, type_table.len) {
+            if (i != j && are_equivalent(i, j, false)) printf("%zu == %zu\n", i, j);
+        }
+    }
 
 }
 
