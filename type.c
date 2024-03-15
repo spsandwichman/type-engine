@@ -12,7 +12,7 @@ int main() {
 
     print_type_graph();
 
-    FOR_URANGE(i, 0, COALESCE_LIMIT) coalesce();
+    coalesce();
 
     print_type_graph();
 
@@ -29,25 +29,33 @@ void coalesce() {
     da(type_pair) equalities;
     da_init(&equalities, 1);
 
-    FOR_URANGE(i, 0, tg.len) {
-        FOR_URANGE(j, i+1, tg.len) {
-            if (are_equivalent(tg.at[i], tg.at[j])) {
-                da_append(&equalities, ((type_pair){tg.at[i], tg.at[j]}));
+    u64 num_of_types = 0;
+
+    while (num_of_types != tg.len) {
+        num_of_types = tg.len;
+        FOR_URANGE(i, 0, tg.len) {
+            FOR_URANGE(j, i+1, tg.len) {
+                if (are_equivalent(tg.at[i], tg.at[j])) {
+                    da_append(&equalities, ((type_pair){tg.at[i], tg.at[j]}));
+                }
+            }
+        }
+
+        for (i64 i = equalities.len-1; i >= 0; i--) {
+            // printf("%zx\n", i);
+            merge_type_references(equalities.at[i].dest, equalities.at[i].src);
+            da_pop(&equalities);
+        }
+
+        FOR_URANGE(i, 0, tg.len) {
+            if (tg.at[i]->disabled) {
+                da_unordered_remove_at(&tg, i);
+                i--;
             }
         }
     }
 
-    for (i64 i = equalities.len-1; i >= 0; i--) {
-        // printf("%zx\n", i);
-        merge_type_references(equalities.at[i].dest, equalities.at[i].src);
-    }
-
-    FOR_URANGE(i, 0, tg.len) {
-        if (tg.at[i]->disabled) {
-            da_unordered_remove_at(&tg, i);
-            i--;
-        }
-    }
+    da_destroy(&equalities);
 }
 
 void merge_type_references(type* dest, type* src) {
