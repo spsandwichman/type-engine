@@ -4,7 +4,7 @@ void ll_int_float_p2() {
     type* struct_nodes[4] = {0};
     FOR_URANGE(i, 0, 4) {
         struct_nodes[i] = make_type(T_STRUCT);
-        add_field(struct_nodes[i], "content", i % 2 == 0 ? tg.at[T_INT] : tg.at[T_FLOAT]);
+        add_field(struct_nodes[i], "content", i % 2 == 0 ? tg.at[T_I64] : tg.at[T_F64]);
     }
 
     FOR_URANGE(i, 0, 4) {

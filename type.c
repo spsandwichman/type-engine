@@ -13,11 +13,11 @@ int main() {
 
     make_type_graph();
 
-    FOR_URANGE(i, 0, 50) {
-        K3_3();
-        K5();
-        ll_int_float_p2();
-    }
+    // FOR_URANGE(i, 0, 50) {
+    //     K3_3();
+    //     K5();
+    //     ll_int_float_p2();
+    // }
 
     // print_type_graph();
     printf("start\n");
@@ -110,10 +110,9 @@ void merge_type_references(type* dest, type* src) {
 bool are_equivalent(type* a, type* b) {
 
     if (a->tag != b->tag) return false;
+    if (a->tag < T_meta_INTEGRAL) return true;
 
-    if (a->tag <= T_FLOAT) return true;
-
-    if (a->tag == T_POINTER) {
+    if (a->tag == T_POINTER || a->tag == T_SLICE) {
         if (get_target(a) == get_target(b)) return true;
     }
 
@@ -159,9 +158,10 @@ bool is_element_equivalent(type* a, type* b, int num_set_a, int num_set_b) {
     if (a->tag != b->tag) return false;
 
     switch (a->tag) {
-    case T_FLOAT:
-    case T_INT:
     case T_VOID:
+    case T_I8:  case T_I16: case T_I32: case T_I64:
+    case T_U8:  case T_U16: case T_U32: case T_U64:
+    case T_F16: case T_F32: case T_F64:
         if (a->tag != b->tag) return false;
         if (a->type_nums[num_set_a] == b->type_nums[num_set_b]) return true;
         // printf("---- %zu %zu\n", a->type_nums[num_set_a], b->type_nums[num_set_b]);
@@ -239,9 +239,19 @@ type* make_type(u8 tag) {
 void make_type_graph() {
     tg = (type_graph){0};
     da_init(&tg, 3);
+    
     make_type(T_VOID);
-    make_type(T_INT);
-    make_type(T_FLOAT);
+    make_type(T_I8);
+    make_type(T_I16);
+    make_type(T_I32);
+    make_type(T_I64);
+    make_type(T_U8);
+    make_type(T_U16);
+    make_type(T_U32);
+    make_type(T_U64);
+    make_type(T_F16);
+    make_type(T_F32);
+    make_type(T_F64);
 }
 
 struct_field* get_field(type* s, size_t i) {
@@ -255,13 +265,13 @@ void add_field(type* s, char* name, type* sub) {
 }
 
 void set_target(type* p, type* dest) {
-    if (p->tag != T_POINTER) return;
-    p->as_pointer.subtype = dest;
+    if (p->tag != T_POINTER || p->tag != T_SLICE) return;
+    p->as_reference.subtype = dest;
 }
 
 type* get_target(type* p) {
     if (p->tag != T_POINTER) return NULL;
-    return p->as_pointer.subtype;
+    return p->as_reference.subtype;
 }
 
 u64 get_index(type* t) {
@@ -277,9 +287,9 @@ void print_type_graph() {
         type* t = tg.at[i];
         printf("%-2zu   [%-2hu, %-2hu]\t", i, t->type_nums[0], t->type_nums[1]);
         switch (t->tag){
-        case T_VOID:  printf("VOID\n");  break;
-        case T_INT:   printf("INT\n");   break;
-        case T_FLOAT: printf("FLOAT\n"); break;
+        case T_VOID:  printf("(void)\n");  break;
+        case T_I64:   printf("i64\n");   break;
+        case T_F64:   printf("f64\n"); break;
         case T_POINTER:
             printf("^ %zu\n", get_index(get_target(t)));
             break;
@@ -291,6 +301,7 @@ void print_type_graph() {
             break;
         
         default:
+            printf("unknown tag %d\n", t->tag);
             break;
         }
     }
