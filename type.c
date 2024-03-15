@@ -1,260 +1,269 @@
 #include "type.h"
 
-void print_type_table() {
-    FOR_URANGE(i, 0, type_table.len) {
-        if (type_table.at[i].disabled) continue;
-        printf("[%zu] = ", i);
-        switch (type_table.at[i].tag) {
-        case t_void:
-            printf("void\n"); continue;
-        case t_int:
-            printf("int\n"); continue;
-        case t_float:
-            printf("float\n"); continue;
-        case t_ptr:
-            printf("pointer -> %zu\n", type_table.at[i].as_ptr);
-            continue;
-        case t_distinct:
-            printf("distinct -> %zu\n", type_table.at[i].as_distinct);
-            continue;
-        case t_alias:
-            printf("'%s' -> %zu\n", type_table.at[i].as_alias.name, type_table.at[i].as_alias.subtype);
-            continue;
-        case t_struct:
-            printf("struct\n");
-            FOR_URANGE(j, 0, type_table.at[i].as_struct.len) {
-                printf("      .%s -> %d\n", 
-                    type_table.at[i].as_struct.at[j].name,
-                    type_table.at[i].as_struct.at[j].subtype);
+type_graph tg;
+
+#define COALESCE_LIMIT 2
+
+int main() {
+    make_type_graph();
+    K5();
+
+    // printf("%s\n", are_equivalent(tg.at[3], tg.at[5]) ? "true" : "false");
+
+    print_type_graph();
+
+    FOR_URANGE(i, 0, COALESCE_LIMIT) coalesce();
+
+    print_type_graph();
+
+}
+
+typedef struct {
+    type* dest;
+    type* src;
+} type_pair;
+
+da_typedef(type_pair);
+
+void coalesce() {
+    da(type_pair) equalities;
+    da_init(&equalities, 1);
+
+    FOR_URANGE(i, 0, tg.len) {
+        FOR_URANGE(j, i+1, tg.len) {
+            if (are_equivalent(tg.at[i], tg.at[j])) {
+                da_append(&equalities, ((type_pair){tg.at[i], tg.at[j]}));
             }
-            continue;
+        }
+    }
+
+    for (i64 i = equalities.len-1; i >= 0; i--) {
+        // printf("%zx\n", i);
+        merge_type_references(equalities.at[i].dest, equalities.at[i].src);
+    }
+
+    FOR_URANGE(i, 0, tg.len) {
+        if (tg.at[i]->disabled) {
+            da_unordered_remove_at(&tg, i);
+            i--;
         }
     }
 }
 
-bool are_simply_equivalent(type_idx a, type_idx b) {
-    if (a == b) return true;
-    switch (type_table.at[a].tag){
-    case t_distinct: return false;
-    case t_struct:
-        if (type_table.at[a].as_struct.len != type_table.at[b].as_struct.len) return false;
-        FOR_URANGE(i, 0, type_table.at[a].as_struct.len) {
-            if (strcmp(type_table.at[a].as_struct.at[i].name, type_table.at[b].as_struct.at[i].name) != 0) return false;
-            if (type_table.at[a].as_struct.at[i].subtype != type_table.at[b].as_struct.at[i].subtype) return false;
-        }
-        return true;
-    case t_ptr:      return type_table.at[b].tag == t_ptr && are_simply_equivalent(type_table.at[a].as_ptr, type_table.at[b].as_ptr);
-    default:         return type_table.at[a].tag == type_table.at[b].tag;
-    }
-}
+void merge_type_references(type* dest, type* src) {
 
-da_typedef(u64);
-
-void number_types(u64* type_numbers, type_idx a, u64* next_number) {
-    if (type_numbers[a] != 0) return;
-
-    type_numbers[a] = (*next_number)++;
-
-    switch (type_table.at[a].tag) {
-    case t_ptr:
-        number_types(type_numbers, type_table.at[a].as_ptr, next_number);
-        break;
-    case t_struct:
-        FOR_URANGE(i, 0, type_table.at[a].as_struct.len) {
-            number_types(type_numbers, type_table.at[a].as_struct.at[i].subtype, next_number);
-        }
-    default: break;
+    u64 src_index = get_index(src);
+    if (src_index == UINT64_MAX) {
+        return;
     }
 
-}
-
-type_idx type_from_number(u64 t, u64* type_nums) {
-    FOR_URANGE(i, 0, type_table.len) {
-        if (type_nums[i] == t) return i;
-    }
-    return -1;
-}
-
-bool are_equivalent(type_idx a, type_idx b, bool ignore_field_names) {
-    if (a >= type_table.len || b >= type_table.len)   return false;
-    if (type_table.at[a].tag != type_table.at[b].tag) return false;
-    if (are_simply_equivalent(a, b))                  return true;
-
-    u64* type_numbers_A = malloc(type_table.len * sizeof(u64));
-    memset(type_numbers_A, 0, type_table.len * sizeof(u64));
-    u64 next_number_A = 1;
-    number_types(type_numbers_A, a, &next_number_A);
-
-    u64* type_numbers_B = malloc(type_table.len * sizeof(u64));
-    memset(type_numbers_B, 0, type_table.len * sizeof(u64));
-    u64 next_number_B = 1;
-    number_types(type_numbers_B, b, &next_number_B);
-
-    if (next_number_A != next_number_B) return false;
-
-    FOR_URANGE(i, 0, next_number_A) {
-        type_idx t_a = type_from_number(i, type_numbers_A);
-        type_idx t_b = type_from_number(i, type_numbers_B);
-
-        if (type_table.at[t_a].tag != type_table.at[t_b].tag) return false;
-
-        switch (type_table.at[t_a].tag) {
-        case t_ptr:
-            if (type_numbers_A[type_table.at[t_a].as_ptr] != type_numbers_B[type_table.at[t_b].as_ptr] &&
-                type_table.at[t_a].as_ptr != type_table.at[t_b].as_ptr)
-                    return false;
+    FOR_URANGE(i, 0, tg.len) {
+        type* t = tg.at[i];
+        switch (t->tag) {
+        case T_STRUCT:
+            FOR_URANGE(i, 0, t->as_struct.fields.len) {
+                if (get_field(t, i)->subtype == src) {
+                    get_field(t, i)->subtype = dest;
+                }
+            }
             break;
-        case t_struct:
-            FOR_URANGE(i, 0, type_table.at[t_a].as_struct.len) {
-                if (!ignore_field_names && strcmp(type_table.at[t_a].as_struct.at[i].name, type_table.at[t_b].as_struct.at[i].name) != 0)
-                        return false;
-                if (type_numbers_A[type_table.at[t_a].as_struct.at[i].subtype] != type_numbers_B[type_table.at[t_b].as_struct.at[i].subtype] &&
-                    type_table.at[t_a].as_struct.at[i].subtype != type_table.at[t_b].as_struct.at[i].subtype)
-                        return false;
+        case T_POINTER:
+            if (get_target(t) == src) {
+                set_target(t, dest);
             }
+            break;
+        default:
+            break;
         }
     }
 
-    free(type_numbers_A);
-    free(type_numbers_B);
+    // printf("--- %zu\n", src_index);
+    src->disabled = true;
+}
+
+bool are_equivalent(type* a, type* b) {
+
+    if (a->tag != b->tag) return false;
+
+    if (a->tag == T_POINTER) {
+        if (get_target(a) == get_target(b)) return true;
+    }
+
+
+
+    u64 a_numbers = 1;
+    locally_number(a, &a_numbers, 0);
+
+    u64 b_numbers = 1;
+    locally_number(b, &b_numbers, 1);
+
+    if (a_numbers != b_numbers) return false;
+
+
+    FOR_URANGE(i, 1, a_numbers) {
+        if (!is_element_equivalent(
+            get_type_from_num(i, 0), 
+            get_type_from_num(i, 1),
+            0, 
+            1
+        )) {
+            return false;
+        }
+    }
+
+    FOR_URANGE(i, 0, tg.len) {
+        tg.at[i]->type_nums[0] = 0;
+        tg.at[i]->type_nums[1] = 0;
+    }
 
     return true;
 }
 
-// all references to type (src) are replaced with references to (dest)
-void merge_types(type_idx dest, type_idx src, bool disable_src) {
-    FOR_URANGE(a, t_NON_BASE, type_table.len) {
-        if (type_table.at[a].disabled) continue;
+bool is_element_equivalent(type* a, type* b, int num_set_a, int num_set_b) {
+    if (a->tag != b->tag) return false;
+    switch (a->tag) {
+    case T_STRUCT:
+        FOR_URANGE(i, 0, a->as_struct.fields.len) {
+            if (strcmp(get_field(a, i)->name, get_field(b, i)->name) != 0) {
+                return false;
+            }
+            if (get_field(a, i)->subtype->type_nums[num_set_a] != get_field(b, i)->subtype->type_nums[num_set_b]) {
+                return false;
+            }
+        }
+        break;
+    case T_POINTER:
+        if (get_target(a)->type_nums[num_set_a] != get_target(b)->type_nums[num_set_b]) {
+            return false;
+        }
+        break;
+    default:
+        break;
+    }
+
+    return true;
+}
+
+void locally_number(type* t, u64* number, int num_set) {
+    if (t->type_nums[num_set] != 0) return;
+
+    t->type_nums[num_set] = (*number)++;
+
+    switch (t->tag) {
+    case T_STRUCT:
+        FOR_URANGE(i, 0, t->as_struct.fields.len) {
+            locally_number(get_field(t, i)->subtype, number, num_set);
+        }
+        break;
+    case T_POINTER:
+            locally_number(get_target(t), number, num_set);
+        break;
+    default:
+        break;
+    }
+}
+
+type* get_type_from_num(u16 num, int num_set) {
+    FOR_URANGE(i, 0, tg.len) {
+        if (tg.at[i]->type_nums[num_set] == num) return tg.at[i];
+    }
+    printf("FUCK %hu %d", num, num_set);
+    return NULL;
+}
+
+void K5() {
+    type* struct_nodes[5] = {0};
+    FOR_URANGE(i, 0, 5) {
+        struct_nodes[i] = make_type(T_STRUCT);
+    }
+
+    FOR_URANGE(i, 0, 5) {
+        FOR_URANGE(c, i+1, i+6) {
+            u64 conn = c % 5;
+            if (i == conn) continue;
+
+            type* p = make_type(T_POINTER);
+            set_target(p, struct_nodes[conn]);
+
+            // printf("connecting %d to %d (%p to %p)\n", i, conn, struct_nodes[i], p);
+
+            char* field_str = malloc(20);
+            memset(field_str, 0, 20);
+            sprintf(field_str, "conn_%d", c-i);
+            add_field(struct_nodes[i], field_str, p);
+        }
+    }
+
+    printf("K5 constructed\n");
+}
+
+type* make_type(u8 tag) {
+    type* t = malloc(sizeof(type));
+    *t = (type){0};
+    t->tag = tag;
+    if (t->tag == T_STRUCT) {
+        da_init(&t->as_struct.fields, 1);
+    }
+    da_append(&tg, t);
+    return t;
+}
+
+void make_type_graph() {
+    tg = (type_graph){0};
+    da_init(&tg, 3);
+    make_type(T_VOID);
+    make_type(T_INT);
+    make_type(T_FLOAT);
+}
+
+struct_field* get_field(type* s, size_t i) {
+    if (s->tag != T_STRUCT) return NULL;
+    return &s->as_struct.fields.at[i];
+}
+
+void add_field(type* s, char* name, type* sub) {
+    if (s->tag != T_STRUCT) return;
+    da_append(&s->as_struct.fields, ((struct_field){name, sub}));
+}
+
+void set_target(type* p, type* dest) {
+    if (p->tag != T_POINTER) return;
+    p->as_pointer.subtype = dest;
+}
+
+type* get_target(type* p) {
+    if (p->tag != T_POINTER) return NULL;
+    return p->as_pointer.subtype;
+}
+
+u64 get_index(type* t) {
+    FOR_URANGE(i, 0, tg.len) {
+        if (tg.at[i] == t) return i;
+    }
+    return UINT64_MAX;
+}
+
+void print_type_graph() {
+    printf("-------------------------\n");
+    FOR_URANGE(i, 0, tg.len) {
+        type* t = tg.at[i];
+        printf("%-2zu   [%-2hu, %-2hu]\t", i, t->type_nums[0], t->type_nums[1]);
+        switch (t->tag){
+        case T_VOID:  printf("VOID\n");  break;
+        case T_INT:   printf("INT\n");   break;
+        case T_FLOAT: printf("FLOAT\n"); break;
+        case T_POINTER:
+            printf("^ %zu\n", get_index(get_target(t)));
+            break;
+        case T_STRUCT:
+            printf("struct\n");
+            FOR_URANGE(field, 0, t->as_struct.fields.len) {
+                printf("\t\t.%s : %zu\n", get_field(t, field)->name, get_index(get_field(t, field)->subtype));
+            }
+            break;
         
-        switch (type_table.at[a].tag) {
-        case t_struct:
-            FOR_URANGE(i, 0, type_table.at[a].as_struct.len) {
-                if (type_table.at[a].as_struct.at[i].subtype == src) type_table.at[a].as_struct.at[i].subtype = dest;
-            }
-            break;
-        case t_ptr:
-            if (type_table.at[a].as_ptr == src) type_table.at[a].as_ptr = dest;
-            break;
-        case t_distinct:
-            if (type_table.at[a].as_distinct == src) type_table.at[a].as_distinct = dest;
-            break;
-        case t_alias:
-            if (type_table.at[a].as_alias.subtype == src) type_table.at[a].as_alias.subtype = dest;
-            break;
         default:
-            CRASH("bruh");
-        }
-    }
-    type_table.at[src].disabled = disable_src;
-}
-
-void canonicalize_type_graph() {
-
-    // make aliases transparent
-    FOR_URANGE(i, 0, type_table.len) {
-        if (type_table.at[i].tag == t_alias) {
-            merge_types(type_table.at[i].as_alias.subtype, i, false);
-        }
-    }
-
-    // coalesce
-    restart:
-    FOR_URANGE(a, 0, type_table.len) {
-        if (type_table.at[a].disabled) continue;
-        FOR_URANGE(b, a+1, type_table.len) {
-            if (type_table.at[b].disabled) continue;
-            if (are_equivalent(a, b, false)) {
-                merge_types(a, b, true);
-                // goto restart;
-                // ^^^ if something isnt working, put this back in
-            }
+            break;
         }
     }
 }
-
-int main() {
-
-    printf("start\n");
-
-    // init type table
-    da_init(&type_table, 10);
-    da_append(&type_table, ((type){.tag = t_void}));
-    da_append(&type_table, ((type){.tag = t_int}));
-    da_append(&type_table, ((type){.tag = t_float}));
-
-
-    // make a linked-list node type
-    type struct_type_one = {
-        .tag = t_struct,
-    };
-    da_init(&struct_type_one.as_struct, 1);
-    da_append(&struct_type_one.as_struct, ((field){
-        .name = "content",
-        .subtype = t_int,
-    }));
-    da_append(&struct_type_one.as_struct, ((field){
-        .name = "next",
-        .subtype = 4,
-    }));
-    da_append(&type_table, struct_type_one);
-    da_append(&type_table, ((type){.tag = t_ptr, .as_ptr = 10}));
-
-
-    // make another one
-    type struct_type_two = {
-        .tag = t_struct,
-    };
-    da_init(&struct_type_two.as_struct, 1);
-    da_append(&struct_type_two.as_struct, ((field){
-        .name = "content",
-        .subtype = t_int,
-    }));
-    da_append(&struct_type_two.as_struct, ((field){
-        .name = "next",
-        .subtype = 6,
-    }));
-    da_append(&type_table, struct_type_two);
-    da_append(&type_table, ((type){.tag = t_ptr, .as_ptr = 3}));
-
-    // make another one
-    type struct_type_three = {
-        .tag = t_struct,
-    };
-    da_init(&struct_type_two.as_struct, 1);
-    da_append(&struct_type_two.as_struct, ((field){
-        .name = "content",
-        .subtype = t_int,
-    }));
-    da_append(&struct_type_two.as_struct, ((field){
-        .name = "next",
-        .subtype = 8,
-    }));
-    da_append(&type_table, struct_type_two);
-    da_append(&type_table, ((type){.tag = t_ptr, .as_ptr = 7}));
-    da_append(&type_table, ((type){.tag = t_ptr, .as_ptr = 10}));
-
-    type an_alias = {
-        .tag = t_alias,
-        .as_alias.name = "node",
-        .as_alias.subtype = 5,
-    };
-    da_append(&type_table, an_alias);
-    
-
-    printf("--------------------------\n");
-    print_type_table();
-    canonicalize_type_graph();
-    printf("--------------------------\n");
-    print_type_table();
-    printf("--------------------------\n");
-
-
-    // FOR_URANGE(i, 0, type_table.len) {
-    //     FOR_URANGE(j, i, type_table.len) {
-    //         if (i != j && are_equivalent(i, j, false)) printf("%zu == %zu\n", i, j);
-    //     }
-    // }
-
-}
-
-da(type) type_table;
