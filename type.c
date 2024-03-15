@@ -2,15 +2,20 @@
 
 type_graph tg;
 
-#define COALESCE_LIMIT 2
+#define LOG(...) printf(__VA_ARGS__)
+// #define LOG(...)
 
 int main() {
     make_type_graph();
-    K5();
+    FOR_RANGE(i, 0, 100) K5();
+    // ll_int_float_p2();
 
     // printf("%s\n", are_equivalent(tg.at[3], tg.at[5]) ? "true" : "false");
 
-    print_type_graph();
+    // print_type_graph();
+    printf("start\n");
+
+    // printf("%d\n", are_equivalent(tg.at[4], tg.at[5]));
 
     coalesce();
 
@@ -29,23 +34,28 @@ void coalesce() {
     da(type_pair) equalities;
     da_init(&equalities, 1);
 
-    u64 num_of_types = 0;
+    u64 num_of_types = UINT64_MAX;
 
+    int count = 0;
     while (num_of_types != tg.len) {
         num_of_types = tg.len;
         FOR_URANGE(i, 0, tg.len) {
             FOR_URANGE(j, i+1, tg.len) {
                 if (are_equivalent(tg.at[i], tg.at[j])) {
+                    // printf("%d == %d\n", i, j);
                     da_append(&equalities, ((type_pair){tg.at[i], tg.at[j]}));
                 }
             }
+            LOG("compared %p (%zu/%zu)\n", tg.at[i], i, tg.len);
         }
-
-        for (i64 i = equalities.len-1; i >= 0; i--) {
-            // printf("%zx\n", i);
+        for (int i = equalities.len-1; i < equalities.len; --i) {
+            if (equalities.at[i].src->disabled) continue;
             merge_type_references(equalities.at[i].dest, equalities.at[i].src);
-            da_pop(&equalities);
+            LOG("merged %p <- %p (%zu/%zu)\n", equalities.at[i].dest, equalities.at[i].src, equalities.len-1-i, equalities.len);
         }
+        // LOG("equalities merged\n");
+        da_clear(&equalities);
+
 
         FOR_URANGE(i, 0, tg.len) {
             if (tg.at[i]->disabled) {
@@ -59,6 +69,8 @@ void coalesce() {
 }
 
 void merge_type_references(type* dest, type* src) {
+
+    if (src->disabled) return;
 
     u64 src_index = get_index(src);
     if (src_index == UINT64_MAX) {
@@ -99,6 +111,18 @@ bool are_equivalent(type* a, type* b) {
         if (get_target(a) == get_target(b)) return true;
     }
 
+    if (a->tag == T_STRUCT) {
+        if (a->as_struct.fields.len != b->as_struct.fields.len) return false;
+        bool subtype_equals = true;
+        FOR_URANGE(i, 0, a->as_struct.fields.len) {
+            if (get_field(a, i)->subtype != get_field(b, i)->subtype) {
+                subtype_equals = false;
+                break;
+            }
+        }
+        if (subtype_equals) return true;
+    }
+
 
 
     u64 a_numbers = 1;
@@ -107,32 +131,39 @@ bool are_equivalent(type* a, type* b) {
     u64 b_numbers = 1;
     locally_number(b, &b_numbers, 1);
 
-    if (a_numbers != b_numbers) return false;
-
+    if (a_numbers != b_numbers) {
+        reset_numbers();
+        return false;
+    }
 
     FOR_URANGE(i, 1, a_numbers) {
-        if (!is_element_equivalent(
-            get_type_from_num(i, 0), 
-            get_type_from_num(i, 1),
-            0, 
-            1
-        )) {
+        if (!is_element_equivalent(get_type_from_num(i, 0), get_type_from_num(i, 1), 0, 1)) {
+            reset_numbers();
             return false;
         }
     }
 
-    FOR_URANGE(i, 0, tg.len) {
-        tg.at[i]->type_nums[0] = 0;
-        tg.at[i]->type_nums[1] = 0;
-    }
+    // print_type_graph();
 
+    reset_numbers();
     return true;
 }
 
 bool is_element_equivalent(type* a, type* b, int num_set_a, int num_set_b) {
     if (a->tag != b->tag) return false;
+
     switch (a->tag) {
+    case T_FLOAT:
+    case T_INT:
+    case T_VOID:
+        if (a->tag != b->tag) return false;
+        if (a->type_nums[num_set_a] == b->type_nums[num_set_b]) return true;
+        // printf("---- %zu %zu\n", a->type_nums[num_set_a], b->type_nums[num_set_b]);
+        break;
     case T_STRUCT:
+        
+        if (a->as_struct.fields.len != b->as_struct.fields.len) return false;
+
         FOR_URANGE(i, 0, a->as_struct.fields.len) {
             if (strcmp(get_field(a, i)->name, get_field(b, i)->name) != 0) {
                 return false;
@@ -173,12 +204,33 @@ void locally_number(type* t, u64* number, int num_set) {
     }
 }
 
+void reset_numbers() {
+    FOR_URANGE(i, 0, tg.len) {
+        tg.at[i]->type_nums[0] = 0;
+        tg.at[i]->type_nums[1] = 0;
+    }
+}
+
 type* get_type_from_num(u16 num, int num_set) {
+    // printf("FUCK %hu %d\n", num, num_set);
     FOR_URANGE(i, 0, tg.len) {
         if (tg.at[i]->type_nums[num_set] == num) return tg.at[i];
     }
-    printf("FUCK %hu %d", num, num_set);
     return NULL;
+}
+
+void ll_int_float_p2() {
+    type* struct_nodes[4] = {0};
+    FOR_URANGE(i, 0, 4) {
+        struct_nodes[i] = make_type(T_STRUCT);
+        add_field(struct_nodes[i], "content", i % 2 == 0 ? tg.at[T_INT] : tg.at[T_FLOAT]);
+    }
+
+    FOR_URANGE(i, 0, 4) {
+        type* next = make_type(T_POINTER);
+        set_target(next, struct_nodes[(i+1)%4]);
+        add_field(struct_nodes[i], "next", next);
+    }
 }
 
 void K5() {
