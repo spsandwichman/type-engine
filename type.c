@@ -93,6 +93,8 @@ bool are_equivalent(type* a, type* b) {
 
     if (a->tag != b->tag) return false;
 
+    if (a->tag <= T_FLOAT) return true;
+
     if (a->tag == T_POINTER) {
         if (get_target(a) == get_target(b)) return true;
     }
