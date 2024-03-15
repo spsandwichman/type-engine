@@ -1,4 +1,7 @@
 #include "type.h"
+#include "patterns.h"
+
+#include <locale.h>
 
 type_graph tg;
 
@@ -6,18 +9,20 @@ type_graph tg;
 // #define LOG(...)
 
 int main() {
-    make_type_graph();
-    FOR_RANGE(i, 0, 100) K5();
-    // ll_int_float_p2();
+    setlocale(LC_NUMERIC, "");
 
-    // printf("%s\n", are_equivalent(tg.at[3], tg.at[5]) ? "true" : "false");
+    make_type_graph();
+
+    FOR_URANGE(i, 0, 50) {
+        K3_3();
+        K5();
+        ll_int_float_p2();
+    }
 
     // print_type_graph();
     printf("start\n");
 
-    // printf("%d\n", are_equivalent(tg.at[4], tg.at[5]));
-
-    coalesce();
+    canonicalize();
 
     print_type_graph();
 
@@ -30,7 +35,7 @@ typedef struct {
 
 da_typedef(type_pair);
 
-void coalesce() {
+void canonicalize() {
     da(type_pair) equalities;
     da_init(&equalities, 1);
 
@@ -46,12 +51,13 @@ void coalesce() {
                     da_append(&equalities, ((type_pair){tg.at[i], tg.at[j]}));
                 }
             }
-            LOG("compared %p (%zu/%zu)\n", tg.at[i], i, tg.len);
+            LOG("compared %p (%'zu/%'zu)\n", tg.at[i], i, tg.len);
+
         }
         for (int i = equalities.len-1; i < equalities.len; --i) {
             if (equalities.at[i].src->disabled) continue;
             merge_type_references(equalities.at[i].dest, equalities.at[i].src);
-            LOG("merged %p <- %p (%zu/%zu)\n", equalities.at[i].dest, equalities.at[i].src, equalities.len-1-i, equalities.len);
+            LOG("merged %p <- %p (%'zu/%'zu)\n", equalities.at[i].dest, equalities.at[i].src, equalities.len-1-i, equalities.len);
         }
         // LOG("equalities merged\n");
         da_clear(&equalities);
@@ -217,46 +223,6 @@ type* get_type_from_num(u16 num, int num_set) {
         if (tg.at[i]->type_nums[num_set] == num) return tg.at[i];
     }
     return NULL;
-}
-
-void ll_int_float_p2() {
-    type* struct_nodes[4] = {0};
-    FOR_URANGE(i, 0, 4) {
-        struct_nodes[i] = make_type(T_STRUCT);
-        add_field(struct_nodes[i], "content", i % 2 == 0 ? tg.at[T_INT] : tg.at[T_FLOAT]);
-    }
-
-    FOR_URANGE(i, 0, 4) {
-        type* next = make_type(T_POINTER);
-        set_target(next, struct_nodes[(i+1)%4]);
-        add_field(struct_nodes[i], "next", next);
-    }
-}
-
-void K5() {
-    type* struct_nodes[5] = {0};
-    FOR_URANGE(i, 0, 5) {
-        struct_nodes[i] = make_type(T_STRUCT);
-    }
-
-    FOR_URANGE(i, 0, 5) {
-        FOR_URANGE(c, i+1, i+6) {
-            u64 conn = c % 5;
-            if (i == conn) continue;
-
-            type* p = make_type(T_POINTER);
-            set_target(p, struct_nodes[conn]);
-
-            // printf("connecting %d to %d (%p to %p)\n", i, conn, struct_nodes[i], p);
-
-            char* field_str = malloc(20);
-            memset(field_str, 0, 20);
-            sprintf(field_str, "conn_%d", c-i);
-            add_field(struct_nodes[i], field_str, p);
-        }
-    }
-
-    printf("K5 constructed\n");
 }
 
 type* make_type(u8 tag) {

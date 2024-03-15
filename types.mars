@@ -1,0 +1,16 @@
+
+
+
+type bruh = struct {
+    x : int;
+    _ : struct {
+        a : ^bruh;
+        b : lmao;
+    };
+}
+
+type bruh = struct {
+    x : int;
+    a : ^bruh;
+    b : lmao;
+}

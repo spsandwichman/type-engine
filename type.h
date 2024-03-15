@@ -1,8 +1,10 @@
+#pragma once
+
 #include "orbit.h"
 
 enum {
     T_VOID,
-    T_INT,
+    T_INT8,
     T_FLOAT,
     T_STRUCT,
     T_POINTER,
@@ -60,6 +62,6 @@ bool are_equivalent(type* a, type* b);
 bool is_element_equivalent(type* a, type* b, int num_set_a, int num_set_b);
 void locally_number(type* t, u64* number, int num_set);
 void reset_numbers();
-void coalesce();
+void canonicalize();
 
 void merge_type_references(type* dest, type* src);
