@@ -4,7 +4,7 @@
 
 enum {
     T_VOID,
-    T_INT8,
+    T_INT,
     T_FLOAT,
     T_STRUCT,
     T_POINTER,
