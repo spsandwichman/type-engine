@@ -38,6 +38,30 @@ void K5() {
     }
 }
 
+void K5_slice() {
+    type* struct_nodes[5] = {0};
+    FOR_URANGE(i, 0, 5) {
+        struct_nodes[i] = make_type(T_STRUCT);
+    }
+
+    FOR_URANGE(i, 0, 5) {
+        FOR_URANGE(c, i+1, i+6) {
+            u64 conn = c % 5;
+            if (i == conn) continue;
+
+            type* p = make_type(T_SLICE);
+            set_target(p, struct_nodes[conn]);
+
+            // printf("connecting %d to %d (%p to %p)\n", i, conn, struct_nodes[i], p);
+
+            char* field_str = malloc(20);
+            memset(field_str, 0, 20);
+            sprintf(field_str, "conn_%d", c-i);
+            add_field(struct_nodes[i], field_str, p);
+        }
+    }
+}
+
 void K3_3() {
     type* top_set[3] = {0};
     type* btm_set[3] = {0};
