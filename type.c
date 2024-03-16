@@ -5,22 +5,22 @@
 
 type_graph tg;
 
-// #define LOG(...) printf(__VA_ARGS__)
-#define LOG(...)
+#define LOG(...) printf(__VA_ARGS__)
+// #define LOG(...)
 
 int main() {
     setlocale(LC_NUMERIC, "");
 
     make_type_graph();
 
-    FOR_URANGE(i, 0, 1000) {
+    FOR_URANGE(i, 0, 100) {
         // K5_slice();
-        // K5();
-        type* t = make_type(T_ARRAY);
-        t->as_array.len = 3;
-        t->as_array.subtype = make_type(T_I64);
-        type* a = make_type(T_DISTINCT);
-        a->as_reference.subtype = t;
+        K5();
+        // type* t = make_type(T_ARRAY);
+        // t->as_array.len = 3;
+        // t->as_array.subtype = make_type(T_I64);
+        // type* a = make_type(T_DISTINCT);
+        // a->as_reference.subtype = t;
     }
 
     
