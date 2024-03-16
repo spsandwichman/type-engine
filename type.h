@@ -48,7 +48,6 @@ enum {
     // references to the underlying type
     T_ALIAS,
     // like an alias, except checks against other types always fail.
-    // this is the way to enforce strict nominal typing
     // references do not get canonicalized away like aliases
     T_DISTINCT,
 
