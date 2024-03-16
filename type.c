@@ -13,15 +13,7 @@ int main() {
 
     make_type_graph();
 
-    FOR_URANGE(i, 0, 100) {
-        // K5_slice();
-        K5();
-        // type* t = make_type(T_ARRAY);
-        // t->as_array.len = 3;
-        // t->as_array.subtype = make_type(T_I64);
-        // type* a = make_type(T_DISTINCT);
-        // a->as_reference.subtype = t;
-    }
+    zipper_ll(10);
 
     
 
@@ -276,7 +268,6 @@ void merge_type_references(type* dest, type* src, bool disable) {
     if (disable) src->disabled = true;
 }
 
-
 void locally_number(type* t, u64* number, int num_set) {
     if (t->type_nums[num_set] != 0) return;
 
@@ -288,11 +279,13 @@ void locally_number(type* t, u64* number, int num_set) {
             locally_number(get_field(t, i)->subtype, number, num_set);
         }
         break;
+    case T_ARRAY:
+        locally_number(t->as_array.subtype, number, num_set);
     case T_POINTER:
     case T_SLICE:
     case T_DISTINCT:
     case T_ALIAS:
-            locally_number(get_target(t), number, num_set);
+        locally_number(get_target(t), number, num_set);
         break;
     default:
         break;

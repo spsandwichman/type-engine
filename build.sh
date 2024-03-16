@@ -1,0 +1,1 @@
+gcc type.c -o type-engine -Ofast && ./type-engine

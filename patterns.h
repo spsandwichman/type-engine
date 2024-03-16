@@ -97,3 +97,51 @@ void K3_3() {
         }
     }
 }
+
+void zipper(u64 magnitude) {
+    
+    type* p = make_type(T_I64);
+
+    FOR_URANGE(i, 0, magnitude) {
+        type* s = make_type(T_STRUCT);
+        add_field(s, "inner", p);
+        p = s;
+    }
+
+    p = make_type(T_I64);
+
+    FOR_URANGE(i, 0, magnitude) {
+        type* s = make_type(T_STRUCT);
+        add_field(s, "inner", p);
+        p = s;
+    }
+}
+
+void zipper_ll(u64 magnitude) {
+    
+    type* real_h = make_type(T_STRUCT);
+    type* h = real_h;
+
+
+    FOR_URANGE(i, 0, magnitude) {
+        type* p = make_type(T_POINTER);
+        type* s = make_type(T_STRUCT);
+        set_target(p, h);
+        add_field(s, "inner", p);
+        h = s;
+    }
+
+    h = real_h;
+
+    FOR_URANGE(i, 0, magnitude) {
+        type* s = make_type(T_STRUCT);
+        type* p = make_type(T_POINTER);
+        set_target(p, h);
+        add_field(s, "inner", p);
+        h = s;
+    }
+    
+    type* p = make_type(T_POINTER);
+    set_target(p, h);
+    add_field(real_h, "inner", p);
+}
