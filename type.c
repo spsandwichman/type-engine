@@ -13,7 +13,10 @@ int main() {
 
     make_type_graph();
 
-    zipper_ll(10);
+    // zipper_ll(150);
+    // zipper(1000);
+
+    FOR_URANGE(i, 0, 500) ll_int_float_p2();
 
     
 
@@ -73,12 +76,12 @@ void canonicalize() {
                     da_append(&equalities, ((type_pair){tg.at[i], tg.at[j]}));
                 }
             }
-            LOG("compared %p (%'zu/%'zu)\n", tg.at[i], i, tg.len);
+            LOG("compared %p (%'zu/%'zu)\n", tg.at[i], i+1, tg.len);
         }
-        for (int i = equalities.len-1; i < equalities.len; --i) {
+        for (int i = equalities.len-1; i >= 0; --i) {
             if (equalities.at[i].src->disabled) continue;
             merge_type_references(equalities.at[i].dest, equalities.at[i].src, true);
-            LOG("merged %p <- %p (%'zu/%'zu)\n", equalities.at[i].dest, equalities.at[i].src, equalities.len-1-i, equalities.len);
+            LOG("merged %p <- %p (%'zu/%'zu)\n", equalities.at[i].dest, equalities.at[i].src, equalities.len-i, equalities.len);
         }
         // LOG("equalities merged\n");
         da_clear(&equalities);
