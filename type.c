@@ -13,14 +13,15 @@ int main() {
 
     make_type_graph();
 
-    // zipper_ll(150);
+    // zipper_ll(200);
     // zipper(1000);
 
-    FOR_URANGE(i, 0, 500) ll_int_float_p2();
+    FOR_URANGE(i, 0, 200) K3_3();
 
     
 
-    print_type_graph();
+    // print_type_graph();
+    printf("(%zu nodes)\n", tg.len);
     printf("start\n");
 
     canonicalize();
@@ -48,7 +49,7 @@ void canonicalize() {
             }
             break;
         case T_ENUM: // variant sorting
-            // using insertion sort for really nice best-case complexity
+            // using insertion sort for nice best-case complexity
             FOR_URANGE(i, 1, t->as_enum.variants.len) {
                 u64 j = i;
                 while (j > 0 && variant_less(get_variant(t, j), get_variant(t, j-1))) {
@@ -65,40 +66,60 @@ void canonicalize() {
     da(type_pair) equalities;
     da_init(&equalities, 1);
 
-    u64 num_of_types = 0;
-    while (num_of_types != tg.len) {
-        num_of_types = tg.len;
-        FOR_URANGE(i, 0, tg.len) {
+    // u64 num_of_types = 0;
+    bool keep_going = true;
+    while (keep_going) {
+        // num_of_types = tg.len;
+        keep_going = false;
+        FOR_URANGE(i, T_meta_INTEGRAL, tg.len) {
             if (tg.at[i]->tag == T_ALIAS) continue;
+            if (tg.at[i]->tag == T_DISTINCT) continue;
+            if (tg.at[i]->moved) continue;
             FOR_URANGE(j, i+1, tg.len) {
                 if (tg.at[j]->tag == T_ALIAS) continue;
+                if (tg.at[j]->tag == T_DISTINCT) continue;
+                if (!(tg.at[i]->dirty || tg.at[j]->dirty)) continue;
                 if (are_equivalent(tg.at[i], tg.at[j])) {
                     da_append(&equalities, ((type_pair){tg.at[i], tg.at[j]}));
                 }
             }
-            LOG("compared %p (%'zu/%'zu)\n", tg.at[i], i+1, tg.len);
+            if (tg.at[i]->dirty) LOG("compared all to %p (%'zu/%'zu)\n", tg.at[i], i+1, tg.len);
+            tg.at[i]->dirty = false;
         }
         for (int i = equalities.len-1; i >= 0; --i) {
-            if (equalities.at[i].src->disabled) continue;
-            merge_type_references(equalities.at[i].dest, equalities.at[i].src, true);
-            LOG("merged %p <- %p (%'zu/%'zu)\n", equalities.at[i].dest, equalities.at[i].src, equalities.len-i, equalities.len);
+            type* src = equalities.at[i].src;
+            while (src->moved) {
+                // printf("moved %p\n", src);
+                src = src->moved; 
+            }
+            type* dest = equalities.at[i].dest;
+            while (dest->moved) {
+                // printf("moved\n");
+                dest = dest->moved; }
+            if (src == dest) continue;
+            merge_type_references(dest, src, true);
+            equalities.at[i].src->moved = dest;
+            dest->dirty = true;
+            keep_going = true;
+            LOG("merged %p <- %p (%'zu/%'zu)\n", dest, src, equalities.len-i, equalities.len);
+            
         }
         // LOG("equalities merged\n");
         da_clear(&equalities);
 
 
-        FOR_URANGE(i, 0, tg.len) {
-            if (tg.at[i]->disabled) {
-                da_unordered_remove_at(&tg, i);
-                i--;
-            }
-        }
+        // FOR_URANGE(i, 0, tg.len) {
+        //     if (tg.at[i]->moved) {
+        //         da_unordered_remove_at(&tg, i);
+        //         i--;
+        //     }
+        // }
     }
 
     da_destroy(&equalities);
 }
 
-bool are_equivalent(type* a, type* b) {
+bool are_equivalent(type* restrict a, type* restrict b) {
 
     while (a->tag == T_ALIAS) a = get_target(a);
     while (b->tag == T_ALIAS) b = get_target(b);
@@ -125,6 +146,29 @@ bool are_equivalent(type* a, type* b) {
         }
         if (subtype_equals) return true;
         break;
+    case T_FUNCTION:
+        if (a->as_function.params.len != b->as_function.params.len) {
+            return false;
+        }
+        if (a->as_function.returns.len != b->as_function.returns.len) {
+            return false;
+        }
+        subtype_equals = true;
+        FOR_URANGE(i, 0, a->as_function.params.len) {
+            if (a->as_function.params.at[i].subtype != b->as_function.params.at[i].subtype) {
+                subtype_equals = false;
+                break;
+            }
+        }
+        if (subtype_equals) return true;
+        FOR_URANGE(i, 0, a->as_function.returns.len) {
+            if (a->as_function.returns.at[i].subtype != b->as_function.returns.at[i].subtype) {
+                subtype_equals = false;
+                break;
+            }
+        }
+        if (subtype_equals) return true;
+        break;
     case T_ARRAY:
         if (a->as_array.len != b->as_array.len) return false;
         break;
@@ -137,7 +181,7 @@ bool are_equivalent(type* a, type* b) {
     default: break;
     }
 
-    // deep structure numbering
+    // deep structure analysis
 
     u64 a_numbers = 1;
     locally_number(a, &a_numbers, 0);
@@ -163,7 +207,7 @@ bool are_equivalent(type* a, type* b) {
     return true;
 }
 
-bool is_element_equivalent(type* a, type* b, int num_set_a, int num_set_b) {
+bool is_element_equivalent(type* restrict a, type* restrict b, int num_set_a, int num_set_b) {
     if (a->tag != b->tag) return false;
 
     switch (a->tag) {
@@ -209,6 +253,30 @@ bool is_element_equivalent(type* a, type* b, int num_set_a, int num_set_b) {
             }
         }
         break;
+    case T_FUNCTION:
+        if (a->as_function.params.len != b->as_function.params.len) {
+            return false;
+        }
+        if (a->as_function.returns.len != b->as_function.returns.len) {
+            return false;
+        }
+        FOR_URANGE(i, 0, a->as_function.params.len) {
+            if (strcmp(a->as_function.params.at[i].name, b->as_function.params.at[i].name) != 0) {
+                return false;
+            }
+            if (a->as_function.params.at[i].subtype->type_nums[num_set_a] != b->as_function.params.at[i].subtype->type_nums[num_set_b]) {
+                return false;
+            }
+        }
+        FOR_URANGE(i, 0, a->as_function.returns.len) {
+            if (strcmp(a->as_function.returns.at[i].name, b->as_function.returns.at[i].name) != 0) {
+                return false;
+            }
+            if (a->as_function.returns.at[i].subtype->type_nums[num_set_a] != b->as_function.returns.at[i].subtype->type_nums[num_set_b]) {
+                return false;
+            }
+        }
+        break;
     case T_ARRAY:
         if (a->as_array.len != b->as_array.len) {
             return false;
@@ -232,7 +300,7 @@ bool is_element_equivalent(type* a, type* b, int num_set_a, int num_set_b) {
     return true;
 }
 
-void merge_type_references(type* dest, type* src, bool disable) {
+void merge_type_references(type* restrict dest, type* restrict src, bool disable) {
 
     u64 src_index = get_index(src);
     if (src_index == UINT64_MAX) {
@@ -246,6 +314,21 @@ void merge_type_references(type* dest, type* src, bool disable) {
             FOR_URANGE(i, 0, t->as_struct.fields.len) {
                 if (get_field(t, i)->subtype == src) {
                     get_field(t, i)->subtype = dest;
+                    t->dirty = true;
+                }
+            }
+            break;
+        case T_FUNCTION:
+            FOR_URANGE(i, 0, t->as_function.params.len) {
+                if (t->as_function.params.at[i].subtype == src) {
+                    t->as_function.params.at[i].subtype = dest;
+                    t->dirty = true;
+                }
+            }
+            FOR_URANGE(i, 0, t->as_function.returns.len) {
+                if (t->as_function.returns.at[i].subtype == src) {
+                    t->as_function.returns.at[i].subtype = dest;
+                    t->dirty = true;
                 }
             }
             break;
@@ -255,11 +338,13 @@ void merge_type_references(type* dest, type* src, bool disable) {
         case T_DISTINCT:
             if (get_target(t) == src) {
                 set_target(t, dest);
+                t->dirty = true;
             }
             break;
         case T_ARRAY:
             if (t->as_array.subtype == src) {
                 t->as_array.subtype = dest;
+                t->dirty = true;
             }
             break;
         default:
@@ -268,10 +353,11 @@ void merge_type_references(type* dest, type* src, bool disable) {
     }
 
     // printf("--- %zu\n", src_index);
-    if (disable) src->disabled = true;
+    if (disable) src->moved = dest;
+    dest->dirty = true;
 }
 
-void locally_number(type* t, u64* number, int num_set) {
+void locally_number(type* restrict t, u64* number, int num_set) {
     if (t->type_nums[num_set] != 0) return;
 
     t->type_nums[num_set] = (*number)++;
@@ -280,6 +366,14 @@ void locally_number(type* t, u64* number, int num_set) {
     case T_STRUCT:
         FOR_URANGE(i, 0, t->as_struct.fields.len) {
             locally_number(get_field(t, i)->subtype, number, num_set);
+        }
+        break;
+    case T_FUNCTION:
+        FOR_URANGE(i, 0, t->as_function.params.len) {
+            locally_number(t->as_function.params.at[i].subtype, number, num_set);
+        }
+        FOR_URANGE(i, 0, t->as_function.returns.len) {
+            locally_number(t->as_function.returns.at[i].subtype, number, num_set);
         }
         break;
     case T_ARRAY:
@@ -317,6 +411,7 @@ type* make_type(u8 tag) {
 
     type* t = malloc(sizeof(type));
     *t = (type){0};
+    t->moved = false;
     t->tag = tag;
 
     switch (tag) {
@@ -329,6 +424,7 @@ type* make_type(u8 tag) {
         break;
     default: break;
     }
+    t->dirty = true;
     da_append(&tg, t);
     return t;
 }
@@ -352,22 +448,22 @@ void make_type_graph() {
     make_type(T_ADDR);
 }
 
-void add_field(type* s, char* name, type* sub) {
+void add_field(type* restrict s, char* name, type* restrict sub) {
     if (s->tag != T_STRUCT) return;
     da_append(&s->as_struct.fields, ((struct_field){name, sub}));
 }
 
-struct_field* get_field(type* s, size_t i) {
+struct_field* get_field(type* restrict s, size_t i) {
     if (s->tag != T_STRUCT) return NULL;
     return &s->as_struct.fields.at[i];
 }
 
-void add_variant(type* e, char* name, i64 val) {
+void add_variant(type* restrict e, char* name, i64 val) {
     if (e->tag != T_ENUM) return;
     da_append(&e->as_enum.variants, ((enum_variant){name, val}));
 }
 
-enum_variant* get_variant(type* e, size_t i) {
+enum_variant* get_variant(type* restrict e, size_t i) {
     if (e->tag != T_ENUM) return NULL;
     return &e->as_enum.variants.at[i];
 }
@@ -381,7 +477,7 @@ bool variant_less(enum_variant* a, enum_variant* b) {
     }
 }
 
-void set_target(type* p, type* dest) {
+void set_target(type* restrict p, type* restrict dest) {
     if (p->tag != T_POINTER && 
         p->tag != T_SLICE && 
         p->tag != T_ALIAS &&
@@ -389,7 +485,7 @@ void set_target(type* p, type* dest) {
     p->as_reference.subtype = dest;
 }
 
-type* get_target(type* p) {
+type* restrict get_target(type* restrict p) {
     if (p->tag != T_POINTER && 
         p->tag != T_SLICE && 
         p->tag != T_ALIAS &&
@@ -397,7 +493,7 @@ type* get_target(type* p) {
     return p->as_reference.subtype;
 }
 
-u64 get_index(type* t) {
+u64 get_index(type* restrict t) {
     FOR_URANGE(i, 0, tg.len) {
         if (tg.at[i] == t) return i;
     }
@@ -408,8 +504,10 @@ void print_type_graph() {
     printf("-------------------------\n");
     FOR_URANGE(i, 0, tg.len) {
         type* t = tg.at[i];
+        if (t->moved) continue;
         // printf("%-2zu   [%-2hu, %-2hu]\t", i, t->type_nums[0], t->type_nums[1]);
         printf("%-2zu\t", i);
+        // printf(t->dirty ? "[dirty]\t" : "[clean]\t");
         switch (t->tag){
         case T_NONE:    printf("(none)\n"); break;
         case T_I8:      printf("i8\n");     break;

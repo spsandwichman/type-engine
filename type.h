@@ -41,6 +41,9 @@ enum {
     // all-purpose aggregate type.
     T_STRUCT,
 
+    // function type! has sort of the same semantics as a struct
+    T_FUNCTION,
+
     // an alias is an "entrypoint" for the type graph
     // an outside system can point to an alias and
     // the canonicalizer will make sure the alias never becomes invalid
@@ -80,12 +83,18 @@ typedef struct type {
             da(struct_field) fields;
         } as_struct;
         struct {
+            da(struct_field) params;
+            da(struct_field) returns;
+        } as_function;
+        struct {
             da(enum_variant) variants;
             u8 backing_type;
         } as_enum;
     };
     u8 tag;
-    bool disabled;
+    // bool disabled;
+    struct type* moved;
+    bool dirty;
 
     u16 size;
 
@@ -105,29 +114,29 @@ void K5();
 void ll_int_float_p2();
 
 void  make_type_graph();
-type* make_type(u8 tag);
+type* restrict make_type(u8 tag);
 
-void          add_field(type* s, char* name, type* sub);
-struct_field* get_field(type* s, size_t i);
+void          add_field(type* restrict s, char* name, type* restrict sub);
+struct_field* get_field(type* restrict s, size_t i);
 
-void          add_variant(type* e, char* name, i64 val);
-enum_variant* get_variant(type* e, size_t i);
+void          add_variant(type* restrict e, char* name, i64 val);
+enum_variant* get_variant(type* restrict e, size_t i);
 
-void  set_target(type* p, type* dest);
-type* get_target(type* p);
+void  set_target(type* restrict p, type* restrict dest);
+type* restrict get_target(type* restrict p);
 
-u64   get_index(type* t);
+u64   get_index(type* restrict t);
 
-type* get_type_from_num(u16 num, int num_set);
+type* restrict get_type_from_num(u16 num, int num_set);
 
-bool are_equivalent(type* a, type* b);
-bool is_element_equivalent(type* a, type* b, int num_set_a, int num_set_b);
+bool are_equivalent(type* restrict a, type* restrict b);
+bool is_element_equivalent(type* restrict a, type* restrict b, int num_set_a, int num_set_b);
 
-void locally_number(type* t, u64* number, int num_set);
+void locally_number(type* restrict t, u64* number, int num_set);
 void reset_numbers();
 
 void canonicalize();
-void merge_type_references(type* dest, type* src, bool disable);
+void merge_type_references(type* restrict dest, type* restrict src, bool disable);
 
 void print_type_graph();
 
