@@ -13,10 +13,11 @@ int main() {
 
     make_type_graph();
 
-    // zipper_ll(200);
+    // zipper_ll(400);
     // zipper(1000);
+    linked_list(1000);
 
-    FOR_URANGE(i, 0, 200) K3_3();
+    // FOR_URANGE(i, 0, 400) K5();
 
     
 
@@ -79,10 +80,15 @@ void canonicalize() {
                 if (tg.at[j]->tag == T_ALIAS) continue;
                 if (tg.at[j]->tag == T_DISTINCT) continue;
                 if (!(tg.at[i]->dirty || tg.at[j]->dirty)) continue;
-                if (are_equivalent(tg.at[i], tg.at[j])) {
+                bool executed_DSA = false;
+                if (are_equivalent(tg.at[i], tg.at[j], &executed_DSA)) {
                     da_append(&equalities, ((type_pair){tg.at[i], tg.at[j]}));
                 }
+                if (executed_DSA) {
+                    reset_numbers(1);
+                }
             }
+            reset_numbers(0);
             if (tg.at[i]->dirty) LOG("compared all to %p (%'zu/%'zu)\n", tg.at[i], i+1, tg.len);
             tg.at[i]->dirty = false;
         }
@@ -119,7 +125,7 @@ void canonicalize() {
     da_destroy(&equalities);
 }
 
-bool are_equivalent(type* restrict a, type* restrict b) {
+bool are_equivalent(type* restrict a, type* restrict b, bool* executed_DSA) {
 
     while (a->tag == T_ALIAS) a = get_target(a);
     while (b->tag == T_ALIAS) b = get_target(b);
@@ -183,6 +189,8 @@ bool are_equivalent(type* restrict a, type* restrict b) {
 
     // deep structure analysis
 
+    *executed_DSA = true;
+
     u64 a_numbers = 1;
     locally_number(a, &a_numbers, 0);
 
@@ -190,20 +198,23 @@ bool are_equivalent(type* restrict a, type* restrict b) {
     locally_number(b, &b_numbers, 1);
 
     if (a_numbers != b_numbers) {
-        reset_numbers();
+        // reset_numbers(0);
+        // reset_numbers(1);
         return false;
     }
 
     FOR_URANGE(i, 1, a_numbers) {
         if (!is_element_equivalent(get_type_from_num(i, 0), get_type_from_num(i, 1), 0, 1)) {
-            reset_numbers();
+            // reset_numbers(0);
+            // reset_numbers(1);
             return false;
         }
     }
 
     // print_type_graph();
 
-    reset_numbers();
+    // reset_numbers(0);
+    // reset_numbers(1);
     return true;
 }
 
@@ -389,10 +400,9 @@ void locally_number(type* restrict t, u64* number, int num_set) {
     }
 }
 
-void reset_numbers() {
+void reset_numbers(int num_set) {
     FOR_URANGE(i, 0, tg.len) {
-        tg.at[i]->type_nums[0] = 0;
-        tg.at[i]->type_nums[1] = 0;
+        tg.at[i]->type_nums[num_set] = 0;
     }
 }
 

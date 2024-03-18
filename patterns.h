@@ -145,3 +145,23 @@ void zipper_ll(u64 magnitude) {
     set_target(p, h);
     add_field(real_h, "inner", p);
 }
+
+void linked_list(u64 magnitude) {
+
+    type* head;
+    type* last;
+
+    FOR_URANGE(i, 0, magnitude) {
+        type* node = make_type(T_STRUCT);
+        if (i == 0) {
+            head = node;
+            last = node;
+        }
+        type* ptr = make_type(T_POINTER);
+        set_target(ptr, last);
+        add_field(node, "next", ptr);
+        last = node;
+    }
+
+    get_field(head, 0)->subtype->as_reference.subtype = last;
+}

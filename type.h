@@ -129,11 +129,11 @@ u64   get_index(type* restrict t);
 
 type* restrict get_type_from_num(u16 num, int num_set);
 
-bool are_equivalent(type* restrict a, type* restrict b);
+bool are_equivalent(type* restrict a, type* restrict b, bool* executed_DSA);
 bool is_element_equivalent(type* restrict a, type* restrict b, int num_set_a, int num_set_b);
 
 void locally_number(type* restrict t, u64* number, int num_set);
-void reset_numbers();
+void reset_numbers(int num_set);
 
 void canonicalize();
 void merge_type_references(type* restrict dest, type* restrict src, bool disable);
