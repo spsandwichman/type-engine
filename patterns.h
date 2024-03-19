@@ -128,6 +128,7 @@ void zipper_ll(u64 magnitude) {
         type* s = make_type(T_STRUCT);
         set_target(p, h);
         add_field(s, "inner", p);
+        add_field(s, "content", make_type(T_I64));
         h = s;
     }
 
@@ -138,12 +139,14 @@ void zipper_ll(u64 magnitude) {
         type* p = make_type(T_POINTER);
         set_target(p, h);
         add_field(s, "inner", p);
+        add_field(s, "content", make_type(T_I64));
         h = s;
     }
     
     type* p = make_type(T_POINTER);
     set_target(p, h);
     add_field(real_h, "inner", p);
+    add_field(real_h, "content", make_type(T_I64));
 }
 
 void linked_list(u64 magnitude) {
@@ -160,6 +163,7 @@ void linked_list(u64 magnitude) {
         type* ptr = make_type(T_POINTER);
         set_target(ptr, last);
         add_field(node, "next", ptr);
+        add_field(node, "content", make_type(T_I16));
         last = node;
     }
 

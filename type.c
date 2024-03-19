@@ -5,29 +5,23 @@
 
 type_graph tg;
 
-#define LOG(...) printf(__VA_ARGS__)
-// #define LOG(...)
+// #define LOG(...) printf(__VA_ARGS__)
+#define LOG(...)
 
 int main() {
-    setlocale(LC_NUMERIC, "");
 
     make_type_graph();
 
-    // zipper_ll(400);
-    // zipper(1000);
-    linked_list(1000);
-
-    // FOR_URANGE(i, 0, 400) K5();
-
-    
+    linked_list(300);
 
     // print_type_graph();
-    printf("(%zu nodes)\n", tg.len);
-    printf("start\n");
+
+    printf("infinite? %d\n", is_infinite(tg.at[13]));
 
     canonicalize();
 
-    print_type_graph();
+    printf("infinite? %d\n", is_infinite(tg.at[13]));
+
 }
 
 typedef struct {
@@ -73,59 +67,63 @@ void canonicalize() {
         // num_of_types = tg.len;
         keep_going = false;
         FOR_URANGE(i, T_meta_INTEGRAL, tg.len) {
+            bool executed_TSA_at_all = false;
             if (tg.at[i]->tag == T_ALIAS) continue;
             if (tg.at[i]->tag == T_DISTINCT) continue;
             if (tg.at[i]->moved) continue;
             FOR_URANGE(j, i+1, tg.len) {
                 if (tg.at[j]->tag == T_ALIAS) continue;
                 if (tg.at[j]->tag == T_DISTINCT) continue;
+                if (tg.at[j]->moved) continue;
                 if (!(tg.at[i]->dirty || tg.at[j]->dirty)) continue;
-                bool executed_DSA = false;
-                if (are_equivalent(tg.at[i], tg.at[j], &executed_DSA)) {
+                bool executed_TSA = false;
+                if (are_equivalent(tg.at[i], tg.at[j], &executed_TSA)) {
                     da_append(&equalities, ((type_pair){tg.at[i], tg.at[j]}));
                 }
-                if (executed_DSA) {
+                if (executed_TSA) {
+                    executed_TSA_at_all = true;
                     reset_numbers(1);
                 }
             }
-            reset_numbers(0);
-            if (tg.at[i]->dirty) LOG("compared all to %p (%'zu/%'zu)\n", tg.at[i], i+1, tg.len);
+            if (executed_TSA_at_all) {
+                reset_numbers(0);
+            }
+            LOG("compared all to %p (%4zu / %4zu)\n", tg.at[i], i+1, tg.len);
             tg.at[i]->dirty = false;
         }
         for (int i = equalities.len-1; i >= 0; --i) {
             type* src = equalities.at[i].src;
             while (src->moved) {
-                // printf("moved %p\n", src);
                 src = src->moved; 
             }
             type* dest = equalities.at[i].dest;
             while (dest->moved) {
-                // printf("moved\n");
-                dest = dest->moved; }
+                dest = dest->moved; 
+            }
             if (src == dest) continue;
             merge_type_references(dest, src, true);
             equalities.at[i].src->moved = dest;
             dest->dirty = true;
             keep_going = true;
-            LOG("merged %p <- %p (%'zu/%'zu)\n", dest, src, equalities.len-i, equalities.len);
+            LOG("merged %p <- %p (%4zu / %4zu)\n", dest, src, equalities.len-i, equalities.len);
             
         }
         // LOG("equalities merged\n");
         da_clear(&equalities);
 
 
-        // FOR_URANGE(i, 0, tg.len) {
-        //     if (tg.at[i]->moved) {
-        //         da_unordered_remove_at(&tg, i);
-        //         i--;
-        //     }
-        // }
+        FOR_URANGE(i, 0, tg.len) {
+            if (tg.at[i]->moved) {
+                da_unordered_remove_at(&tg, i);
+                i--;
+            }
+        }
     }
 
     da_destroy(&equalities);
 }
 
-bool are_equivalent(type* restrict a, type* restrict b, bool* executed_DSA) {
+bool are_equivalent(type* restrict a, type* restrict b, bool* executed_TSA) {
 
     while (a->tag == T_ALIAS) a = get_target(a);
     while (b->tag == T_ALIAS) b = get_target(b);
@@ -142,9 +140,10 @@ bool are_equivalent(type* restrict a, type* restrict b, bool* executed_DSA) {
         if (get_target(a) == get_target(b)) return true;
         break;
     case T_STRUCT:
-        if (a->as_struct.fields.len != b->as_struct.fields.len) return false;
+    case T_UNION:
+        if (a->as_aggregate.fields.len != b->as_aggregate.fields.len) return false;
         bool subtype_equals = true;
-        FOR_URANGE(i, 0, a->as_struct.fields.len) {
+        FOR_URANGE(i, 0, a->as_aggregate.fields.len) {
             if (get_field(a, i)->subtype != get_field(b, i)->subtype) {
                 subtype_equals = false;
                 break;
@@ -189,7 +188,7 @@ bool are_equivalent(type* restrict a, type* restrict b, bool* executed_DSA) {
 
     // deep structure analysis
 
-    *executed_DSA = true;
+    *executed_TSA = true;
 
     u64 a_numbers = 1;
     locally_number(a, &a_numbers, 0);
@@ -252,10 +251,11 @@ bool is_element_equivalent(type* restrict a, type* restrict b, int num_set_a, in
         }
         break;
     case T_STRUCT:
-        if (a->as_struct.fields.len != b->as_struct.fields.len) {
+    case T_UNION:
+        if (a->as_aggregate.fields.len != b->as_aggregate.fields.len) {
             return false;
         }
-        FOR_URANGE(i, 0, a->as_struct.fields.len) {
+        FOR_URANGE(i, 0, a->as_aggregate.fields.len) {
             if (strcmp(get_field(a, i)->name, get_field(b, i)->name) != 0) {
                 return false;
             }
@@ -322,7 +322,8 @@ void merge_type_references(type* restrict dest, type* restrict src, bool disable
         type* t = tg.at[i];
         switch (t->tag) {
         case T_STRUCT:
-            FOR_URANGE(i, 0, t->as_struct.fields.len) {
+        case T_UNION:
+            FOR_URANGE(i, 0, t->as_aggregate.fields.len) {
                 if (get_field(t, i)->subtype == src) {
                     get_field(t, i)->subtype = dest;
                     t->dirty = true;
@@ -375,7 +376,8 @@ void locally_number(type* restrict t, u64* number, int num_set) {
 
     switch (t->tag) {
     case T_STRUCT:
-        FOR_URANGE(i, 0, t->as_struct.fields.len) {
+    case T_UNION:
+        FOR_URANGE(i, 0, t->as_aggregate.fields.len) {
             locally_number(get_field(t, i)->subtype, number, num_set);
         }
         break;
@@ -426,7 +428,8 @@ type* make_type(u8 tag) {
 
     switch (tag) {
     case T_STRUCT:
-        da_init(&t->as_struct.fields, 1);
+    case T_UNION:
+        da_init(&t->as_aggregate.fields, 1);
         break;
     case T_ENUM:
         da_init(&t->as_enum.variants, 1);
@@ -459,13 +462,13 @@ void make_type_graph() {
 }
 
 void add_field(type* restrict s, char* name, type* restrict sub) {
-    if (s->tag != T_STRUCT) return;
-    da_append(&s->as_struct.fields, ((struct_field){name, sub}));
+    if (s->tag != T_STRUCT && s->tag != T_UNION) return;
+    da_append(&s->as_aggregate.fields, ((struct_field){name, sub}));
 }
 
 struct_field* get_field(type* restrict s, size_t i) {
-    if (s->tag != T_STRUCT) return NULL;
-    return &s->as_struct.fields.at[i];
+    if (s->tag != T_STRUCT && s->tag != T_UNION) return NULL;
+    return &s->as_aggregate.fields.at[i];
 }
 
 void add_variant(type* restrict e, char* name, i64 val) {
@@ -548,8 +551,9 @@ void print_type_graph() {
             printf("array %zu\n", get_index(t->as_array.subtype));
             break;
         case T_STRUCT:
-            printf("struct\n");
-            FOR_URANGE(field, 0, t->as_struct.fields.len) {
+        case T_UNION:
+            printf(t->tag == T_STRUCT ? "struct\n" : "union\n");
+            FOR_URANGE(field, 0, t->as_aggregate.fields.len) {
                 printf("\t\t.%s : %zu\n", get_field(t, field)->name, get_index(get_field(t, field)->subtype));
             }
             break;
@@ -559,4 +563,54 @@ void print_type_graph() {
             break;
         }
     }
+}
+
+// is type unboundedly recursive (have infinite size)?
+bool is_infinite(type* t) {
+    if (t->visited) return true;
+
+    t->visited = true;
+    bool is_inf = false;
+
+    switch (t->tag) {
+    case T_STRUCT:
+    case T_UNION:
+        FOR_URANGE(i, 0, t->as_aggregate.fields.len) {
+            if (is_infinite(get_field(t, i)->subtype)) {
+                is_inf = true;
+                break;
+            }
+        }
+        break;
+    case T_FUNCTION:
+        FOR_URANGE(i, 0, t->as_function.params.len) {
+            if (is_infinite(t->as_function.params.at[i].subtype)) {
+                is_inf = true;
+                break;
+            }
+        }
+        FOR_URANGE(i, 0, t->as_function.returns.len) {
+            if (is_infinite(t->as_function.returns.at[i].subtype)) {
+                is_inf = true;
+                break;
+            }
+        }
+        break;
+    case T_ARRAY:
+        is_inf = is_infinite(t->as_array.subtype);
+        break;
+    case T_POINTER:
+    case T_SLICE:
+        break;
+
+    case T_DISTINCT:
+    case T_ALIAS:
+        is_infinite(get_target(t));
+        break;
+    default:
+        break;
+    }
+
+    t->visited = false;
+    return is_inf;
 }

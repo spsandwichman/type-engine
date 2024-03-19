@@ -40,6 +40,7 @@ enum {
 
     // all-purpose aggregate type.
     T_STRUCT,
+    T_UNION,
 
     // function type! has sort of the same semantics as a struct
     T_FUNCTION,
@@ -81,7 +82,7 @@ typedef struct type {
         } as_array;
         struct {
             da(struct_field) fields;
-        } as_struct;
+        } as_aggregate;
         struct {
             da(struct_field) params;
             da(struct_field) returns;
@@ -91,10 +92,11 @@ typedef struct type {
             u8 backing_type;
         } as_enum;
     };
+    struct type* moved;
     u8 tag;
     // bool disabled;
-    struct type* moved;
-    bool dirty;
+    bool dirty : 1;
+    bool visited : 1;
 
     u16 size;
 
@@ -129,7 +131,7 @@ u64   get_index(type* restrict t);
 
 type* restrict get_type_from_num(u16 num, int num_set);
 
-bool are_equivalent(type* restrict a, type* restrict b, bool* executed_DSA);
+bool are_equivalent(type* restrict a, type* restrict b, bool* executed_TSA);
 bool is_element_equivalent(type* restrict a, type* restrict b, int num_set_a, int num_set_b);
 
 void locally_number(type* restrict t, u64* number, int num_set);
@@ -142,3 +144,5 @@ void print_type_graph();
 
 // a < b
 bool variant_less(enum_variant* a, enum_variant* b);
+
+bool is_infinite(type* t);

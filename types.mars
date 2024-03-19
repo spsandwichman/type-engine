@@ -1,14 +1,14 @@
 
 type bruh = struct {
-    x : int;
-    _ : struct {
-        a : ^bruh;
-        b : lmao;
-    };
-}
+    x : int,
+    _ : union {
+        a : ^bruh,
+        b : lmao,
+    }
+};
 
-type bruh = struct #union {
-    x : addr;
-    a : ^bruh;
-    b : lmao;
-}
+type bruh = union {
+    x : addr,
+    a : ^bruh,
+    b : lmao,
+};
