@@ -14,6 +14,31 @@ void ll_int_float_p2() {
     }
 }
 
+void complete(u64 magnitude) {
+    type** struct_nodes = malloc(sizeof(type*) * magnitude);
+    memset(struct_nodes, 0, sizeof(type*) * magnitude);
+
+    FOR_URANGE(i, 0, magnitude) {
+        struct_nodes[i] = make_type(T_STRUCT);
+    }
+
+    FOR_URANGE(i, 0, magnitude) {
+        FOR_URANGE(c, i+1, i+1+magnitude) {
+            u64 conn = c % magnitude;
+            if (i == conn) continue;
+
+            type* p = make_type(T_POINTER);
+            set_target(p, struct_nodes[conn]);
+            
+            char* field_str = malloc(50);
+            memset(field_str, 0, 50);
+            sprintf(field_str, "conn_%zu", c-i);
+            add_field(struct_nodes[i], field_str, p);
+        }
+    }
+
+}
+
 void K5() {
     type* struct_nodes[5] = {0};
     FOR_URANGE(i, 0, 5) {

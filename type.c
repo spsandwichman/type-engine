@@ -5,23 +5,22 @@
 
 type_graph tg;
 
-// #define LOG(...) printf(__VA_ARGS__)
-#define LOG(...)
+#define LOG(...) printf(__VA_ARGS__)
+// #define LOG(...)
 
 int main() {
 
     make_type_graph();
 
-    linked_list(300);
+    complete(30);
 
     // print_type_graph();
 
-    printf("infinite? %d\n", is_infinite(tg.at[13]));
+    printf("%zu nodes\n", tg.len);
 
     canonicalize();
 
-    printf("infinite? %d\n", is_infinite(tg.at[13]));
-
+    print_type_graph();
 }
 
 typedef struct {
@@ -433,7 +432,7 @@ type* make_type(u8 tag) {
         break;
     case T_ENUM:
         da_init(&t->as_enum.variants, 1);
-        t->as_enum.backing_type = T_I64;
+        t->as_enum.backing_type = tg.at[T_I64];
         break;
     default: break;
     }
@@ -613,4 +612,115 @@ bool is_infinite(type* t) {
 
     t->visited = false;
     return is_inf;
+}
+
+u64 static size_of_internal(type* t) {
+    switch (t->tag) {
+    case T_NONE:
+        return 0;
+    case T_I8:
+    case T_U8:
+        return 1;
+    case T_I16:
+    case T_U16:
+    case T_F16:
+        return 2;
+    case T_I32:
+    case T_U32:
+    case T_F32:
+        return 4;
+    case T_I64:
+    case T_U64:
+    case T_F64:
+    case T_POINTER:
+    case T_ADDR:
+    case T_FUNCTION: // remember, its a function POINTER!
+        return 8;
+    case T_SLICE:
+        return 16;
+    case T_ENUM:
+        return size_of_internal(t->as_enum.backing_type);
+    case T_ALIAS:
+    case T_DISTINCT:
+        return size_of_internal(t->as_reference.subtype);
+    case T_ARRAY:
+        return size_of_internal(t->as_array.subtype) * t->as_array.len;
+    case T_UNION: {
+        u64 max_size = 0;
+        FOR_URANGE(i, 0, t->as_aggregate.fields.len) {
+            u64 size = size_of_internal(get_field(t, i)->subtype);
+            if (size > max_size) max_size = size;
+        }
+        return max_size;
+        } break;
+    case T_STRUCT: {
+        u64 full_size = 0;
+        FOR_URANGE(i, 0, t->as_aggregate.fields.len) {
+            full_size += size_of_internal(get_field(t, i)->subtype);
+        }
+        return full_size;
+        } break;
+    default:
+        CRASH("unreachable");
+    }
+}
+
+u64 size_of(type* t) {
+    if (is_infinite(t)) return UINT64_MAX;
+    return size_of_internal(t);
+}
+
+u64 static align_of_internal(type* t) {
+    switch (t->tag) {
+    case T_NONE:
+        return 0;
+    case T_I8:
+    case T_U8:
+        return 1;
+    case T_I16:
+    case T_U16:
+    case T_F16:
+        return 2;
+    case T_I32:
+    case T_U32:
+    case T_F32:
+        return 4;
+    case T_I64:
+    case T_U64:
+    case T_F64:
+    case T_POINTER:
+    case T_ADDR:
+    case T_FUNCTION: // remember, its a function POINTER!
+    case T_SLICE:
+        return 8;
+    case T_ENUM:
+        return align_of_internal(t->as_enum.backing_type);
+    case T_ALIAS:
+    case T_DISTINCT:
+        return align_of_internal(t->as_reference.subtype);
+    case T_ARRAY:
+        return align_of_internal(t->as_array.subtype);
+    
+    case T_UNION:
+    case T_STRUCT: {
+        u64 max_align = 0;
+        FOR_URANGE(i, 0, t->as_aggregate.fields.len) {
+            u64 align = align_of_internal(get_field(t, i)->subtype);
+            if (align > max_align) max_align = align;
+        }
+        return max_align;
+        } break;
+    default:
+        CRASH("unreachable");
+    }
+}
+
+u64 align_of(type* t) {
+    if (is_infinite(t)) return UINT64_MAX;
+    return align_of_internal(t);
+}
+
+// align a number (n) up to a power of two (align)
+u64 forceinline align_forward(u64 n, u64 align) {
+    return (n + align - 1) & ~(align - 1);
 }

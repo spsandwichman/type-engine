@@ -89,7 +89,7 @@ typedef struct type {
         } as_function;
         struct {
             da(enum_variant) variants;
-            u8 backing_type;
+            struct type* backing_type;
         } as_enum;
     };
     struct type* moved;
@@ -112,31 +112,22 @@ typedef struct {
 
 extern type_graph tg;
 
-void K5();
-void ll_int_float_p2();
-
 void  make_type_graph();
 type* restrict make_type(u8 tag);
 
 void          add_field(type* restrict s, char* name, type* restrict sub);
 struct_field* get_field(type* restrict s, size_t i);
-
 void          add_variant(type* restrict e, char* name, i64 val);
 enum_variant* get_variant(type* restrict e, size_t i);
-
 void  set_target(type* restrict p, type* restrict dest);
 type* restrict get_target(type* restrict p);
-
 u64   get_index(type* restrict t);
 
 type* restrict get_type_from_num(u16 num, int num_set);
-
 bool are_equivalent(type* restrict a, type* restrict b, bool* executed_TSA);
 bool is_element_equivalent(type* restrict a, type* restrict b, int num_set_a, int num_set_b);
-
 void locally_number(type* restrict t, u64* number, int num_set);
 void reset_numbers(int num_set);
-
 void canonicalize();
 void merge_type_references(type* restrict dest, type* restrict src, bool disable);
 
@@ -145,4 +136,8 @@ void print_type_graph();
 // a < b
 bool variant_less(enum_variant* a, enum_variant* b);
 
+u64 size_of(type* t);
+u64 align_of(type* t);
+
 bool is_infinite(type* t);
+u64 forceinline align_forward(u64 n, u64 align);
