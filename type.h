@@ -136,8 +136,8 @@ void print_type_graph();
 // a < b
 bool variant_less(enum_variant* a, enum_variant* b);
 
-u64 size_of(type* t);
-u64 align_of(type* t);
+u64 size_of(type* restrict t);
+u64 align_of(type* restrict t);
 
-bool is_infinite(type* t);
+bool is_infinite(type* restrict t);
 u64 forceinline align_forward(u64 n, u64 align);

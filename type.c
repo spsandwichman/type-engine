@@ -565,7 +565,7 @@ void print_type_graph() {
 }
 
 // is type unboundedly recursive (have infinite size)?
-bool is_infinite(type* t) {
+bool is_infinite(type* restrict t) {
     if (t->visited) return true;
 
     t->visited = true;
@@ -614,7 +614,7 @@ bool is_infinite(type* t) {
     return is_inf;
 }
 
-u64 static size_of_internal(type* t) {
+u64 static size_of_internal(type* restrict t) {
     switch (t->tag) {
     case T_NONE:
         return 0;
@@ -665,12 +665,12 @@ u64 static size_of_internal(type* t) {
     }
 }
 
-u64 size_of(type* t) {
+u64 size_of(type* restrict t) {
     if (is_infinite(t)) return UINT64_MAX;
     return size_of_internal(t);
 }
 
-u64 static align_of_internal(type* t) {
+u64 static align_of_internal(type* restrict t) {
     switch (t->tag) {
     case T_NONE:
         return 0;
@@ -715,7 +715,7 @@ u64 static align_of_internal(type* t) {
     }
 }
 
-u64 align_of(type* t) {
+u64 align_of(type* restrict t) {
     if (is_infinite(t)) return UINT64_MAX;
     return align_of_internal(t);
 }
