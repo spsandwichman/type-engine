@@ -174,7 +174,7 @@ void zipper_ll(u64 magnitude) {
     add_field(real_h, "content", make_type(T_I64));
 }
 
-void linked_list(u64 magnitude) {
+void linked_list(u64 magnitude, bool const_ptrs) {
 
     type* head;
     type* last;
@@ -186,6 +186,7 @@ void linked_list(u64 magnitude) {
             last = node;
         }
         type* ptr = make_type(T_POINTER);
+        ptr->as_reference.constant = const_ptrs;
         set_target(ptr, last);
         add_field(node, "next", ptr);
         add_field(node, "content", make_type(T_I16));

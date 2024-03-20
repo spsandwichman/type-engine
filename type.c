@@ -12,7 +12,9 @@ int main() {
 
     make_type_graph();
 
-    complete(30);
+    // complete(30);
+    linked_list(500, true);
+    linked_list(300, true);
 
     // print_type_graph();
 
@@ -136,6 +138,7 @@ bool are_equivalent(type* restrict a, type* restrict b, bool* executed_TSA) {
     switch (a->tag) {
     case T_POINTER:
     case T_SLICE:
+        if (a->as_reference.constant != b->as_reference.constant) return false;
         if (get_target(a) == get_target(b)) return true;
         break;
     case T_STRUCT:
@@ -297,6 +300,7 @@ bool is_element_equivalent(type* restrict a, type* restrict b, int num_set_a, in
         break;
     case T_POINTER:
     case T_SLICE:
+        if (a->as_reference.constant != b->as_reference.constant) return false;
         if (get_target(a)->type_nums[num_set_a] != get_target(b)->type_nums[num_set_b]) {
             return false;
         }

@@ -75,6 +75,7 @@ typedef struct type {
     union {
         struct {
             struct type* subtype;
+            bool constant; // only used by pointers and slices
         } as_reference; // used by T_POINTER, T_SLICE, T_ALIAS, and T_DISTINCT
         struct {
             struct type* subtype;
